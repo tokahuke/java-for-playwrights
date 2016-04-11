@@ -43,7 +43,7 @@ import communications.TimeoutException;
  * indefinitely. In this case, consider using {@link Server}, an Actor pool,
  * instead.
  * 
- * @author rongomai
+ * @author tokahuke
  *
  * @param <P>
  *            the type of the payload this Actor works with.
@@ -59,7 +59,7 @@ public class Actor<P> {
 	 * {@link Actor#perform()} but it does not have any {@link Part} to
 	 * interpret.
 	 * 
-	 * @author rongomai
+	 * @author tokahuke
 	 *
 	 */
 	public static class NotLoadedException extends IllegalStateException {
@@ -74,7 +74,7 @@ public class Actor<P> {
 	 * An exception raised when the {@link Actor} is asked to load another
 	 * {@link Part}. Actors are immutable in this respect.
 	 * 
-	 * @author rongomai
+	 * @author tokahuke
 	 *
 	 */
 	public static class AlreadyLoadedException extends IllegalStateException {

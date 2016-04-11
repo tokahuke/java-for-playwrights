@@ -9,7 +9,7 @@ import java.util.function.BiConsumer;
  * protocol. It is sub-classed for each type of action a character can take in
  * the description (whether a send, a run or a test).
  * 
- * @author rongomai
+ * @author tokahuke
  *
  */
 abstract class Node {

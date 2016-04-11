@@ -17,7 +17,7 @@ import java.util.Map;
  * All the fields in this class are package-private and final, thus not
  * accessible to the user.
  * 
- * @author rongomai
+ * @author tokahuke
  *
  */
 public class Part implements Serializable {

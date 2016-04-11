@@ -22,7 +22,7 @@ public class Server<P> {
 	 * Enumerates the possible states of the Server, that is, whether it is
 	 * running, stopped or aborted (abruptly stopped).
 	 * 
-	 * @author rongomai
+	 * @author tokahuke
 	 *
 	 */
 	private static enum RunStatus {

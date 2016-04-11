@@ -18,7 +18,7 @@ import function.UnaryWithActor;
 
 /**
  * 
- * @author rongomai
+ * @author tokahuke
  *
  * @param P
  *            the type of payload the play uses to send messages.
@@ -27,7 +27,7 @@ public abstract class Play<P> {
 	/**
 	 * A private exception for catching loops in the running graph.
 	 * 
-	 * @author rongomai
+	 * @author tokahuke
 	 *
 	 */
 	private static class LoopFoundException extends RuntimeException {
@@ -395,7 +395,7 @@ public abstract class Play<P> {
 	 * Implements a representation of a character in a play. A character can
 	 * send things, run things and test things.
 	 * 
-	 * @author rongomai
+	 * @author tokahuke
 	 *
 	 * @param <A>
 	 *            the Actor class to run the role described by this character.
@@ -890,7 +890,7 @@ public abstract class Play<P> {
 	/**
 	 * A character that uses Actor directly, i.e., has no internal state.
 	 * 
-	 * @author rongomai
+	 * @author tokahuke
 	 * 
 	 * @see Character
 	 * @see Actor

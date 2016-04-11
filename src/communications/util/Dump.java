@@ -15,7 +15,7 @@ public class Dump<P> implements CommunicationResource<P> {
 	 * Enumerates the type of traffic to be shown on the screen (Whether
 	 * send-side only, receive-side only or both sides).
 	 * 
-	 * @author rongomai
+	 * @author tokahuke
 	 *
 	 */
 	public static enum Show {

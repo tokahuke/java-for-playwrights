@@ -15,7 +15,7 @@ import java.util.function.Predicate;
 
 /**
  * 
- * @author rongomai
+ * @author tokahuke
  * 
  */
 class Flowchart {
@@ -26,7 +26,7 @@ class Flowchart {
 	 * A functional interface to describe the action to be taken for each edge
 	 * in a graph search of the flowchart.
 	 * 
-	 * @author rongomai
+	 * @author tokahuke
 	 * @see Flowchart#doSearch(Predicate, EdgeConsumer)
 	 * @see Flowchart#doSearch(EdgeConsumer)
 	 * 
@@ -667,7 +667,7 @@ class Flowchart {
 /**
  * Utilities class for Flowchart: array conversion functions.
  * 
- * @author rongomai
+ * @author tokahuke
  *
  */
 final class FlowchartUtils {
