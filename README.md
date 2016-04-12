@@ -9,7 +9,7 @@ This is the partial result of my personal work for my master's degree (not attai
 
 The most interesting part, however, is the embedded domain specific language for protocol description. It is ultimately based on how we tell Alice-and-Bob stories. It allows a centralized and partially causal description of network behavior, with support to branching, looping and message loss provisioning. I have been able to code a some rudimentary, but already complex showcases in it, including a primitive transport protocol. 
 
-Since the project has been growing in complexity and time to develop it has run short, I have decided to upload it on GitHub in an attempt to change its fate as academic abandoware. **If you are interested by it, please contact me!** I will be happy either to develop the ideas further or to pass the stick.
+Since the project has been growing in complexity and time to develop it has run short, I have decided to upload it on GitHub in an attempt to change its fate as academic abandoware. **If you are interested in it, please contact me!** I will be happy either to develop the ideas further or to pass the stick.
 
 ## State of development
 
