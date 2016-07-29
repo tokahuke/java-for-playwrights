@@ -257,6 +257,7 @@ public class Actor<P> {
 		}
 		
 		// Useful debug:
+//		if (part.characterName.equals("DC"))
 //		System.out.println(part);
 		
 		// Initialize other variables:
@@ -397,7 +398,7 @@ public class Actor<P> {
 					// Mark message as expired if it has not yet arrived:
 					maxTimes[expiredMessageId] = -1;
 					transition = finder.markTimeout((short) expiredMessageId);
-
+					
 					// Found it? Great!
 					if (transition != null) {
 						break;

@@ -451,8 +451,8 @@ public class SharesShowcase {
 
 				new SmartMeter(addresses, n, resource).run();
 			}
-
-			// Everything should start working and shooting messages around now.
 		}
+		
+		// Everything should start working and shooting messages around now.
 	}
 }
