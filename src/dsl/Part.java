@@ -84,6 +84,11 @@ public class Part implements Serializable {
 	final short[][] nextMessagesReverse;
 	
 	/**
+	 * A topological ordering of the nextActions (acyclic) graph.
+	 */
+	final short[] topSort;
+	
+	/**
 	 * The mapping between incoming message ids and NoRxException handlers.
 	 * Null positions indicate no handler was supplied.
 	 */
@@ -108,7 +113,9 @@ public class Part implements Serializable {
 	 */
 	final BitSet[] isCausFinal;
 	
-	
+	/**
+	 * 
+	 */
 	final BitSet isSpontaneous;
 	
 	// "Constants":
@@ -132,7 +139,7 @@ public class Part implements Serializable {
 			Class<?> actorClass, Map<String, Short> inMessageIds,
 			Map<String, Short> outMessageIds, Map<String, Short> characterIds,
 			short[] characterForMessage, Object[] nextActions,
-			short[][] nextMessagesReverse, Node[] noReceiveHandlers,
+			short[][] nextMessagesReverse, short[] topSort, Node[] noReceiveHandlers,
 			short[][] causalRelation, int[][] maxDelays, BitSet[] isCausFinal,
 			BitSet isSpontaneous, int stackSize, RootNode rootNode) {
 		super();
@@ -145,6 +152,7 @@ public class Part implements Serializable {
 		this.characterForMessage = characterForMessage;
 		this.nextActions = nextActions;
 		this.nextMessagesReverse = nextMessagesReverse;
+		this.topSort = topSort;
 		this.noReceiveHandlers = noReceiveHandlers;
 		this.causalRelation = causalRelation;
 		this.maxDelays = maxDelays;

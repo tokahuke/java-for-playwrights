@@ -1,23 +1,24 @@
 package shares;
 
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
+import protocols.ThreadProtocol;
+
 import communications.CommunicationResource;
 import communications.FullMessage;
+import communications.RxException;
 import communications.TxException;
-import communications.ShortMessage;
 import communications.util.Dump;
-import compose.MessageEncodingScheme;
-import composition.AcknowledgeChannel;
+
 import dsl.Actor;
 import dsl.Play;
 import dsl.Server;
-import protocols.ThreadProtocol;
 
 
 class SmartMeterActor extends Actor<Integer> {
@@ -129,7 +130,7 @@ class ShareProtocol extends Play<Integer> {
 		// Keep it well. Trudy cannot find it out.
 		dataConcentrator.send(smartMeters.get(1),
 				ConcentratorActor::maskedValue, SmartMeterActor::addToShare,
-				"Share");
+				"Share", 10);
 
 		int sender = 1, receiver = 1;
 		while (sender < smartMeterNumber - 1) {
@@ -141,11 +142,13 @@ class ShareProtocol extends Play<Integer> {
 			// masked value, you data concentrator! As your wisdom is great, so
 			// is your cunning. The true value, though, you will never know,
 			// least you use it for evil end.
-			smartMeters.get(sender).send(
-					dataConcentrator,
-					sm -> {
-						return sm.maskedValue();
-					}, "Masked_from_" + sender);
+			try {
+				smartMeters.get(sender).send(
+						dataConcentrator,
+						sm -> {
+							return sm.maskedValue();
+						}, "Masked_from_" + sender, 10);
+			} catch (RxException e) {}
 			
 			//dataConcentrator.run(dc -> dc.putMasked(dc.getMessage("Masked_")));
 			
@@ -162,12 +165,12 @@ class ShareProtocol extends Play<Integer> {
 					// you.
 					smartMeters.get(sender).send(smartMeters.get(receiver),
 							SmartMeterActor::getTotalShare,
-							SmartMeterActor::addToShare, "Share_from_" + sender);
+							SmartMeterActor::addToShare, "Share_from_" + sender, 10);
 					break;
 				} catch (TxException e) {
 					// [N-th smart meter tries the next one in the line.]
-					smartMeters.get(sender).send(dataConcentrator,
-							"Comm_failed_" + sender + "_" + receiver);
+					//smartMeters.get(sender).send(dataConcentrator,
+					//		"Comm_failed_" + sender + "_" + receiver);
 					
 					// And if we get to the end, we are screwed!
 					if (receiver == smartMeterNumber - 1) {
@@ -184,14 +187,14 @@ class ShareProtocol extends Play<Integer> {
 		// is your cunning. The true value, though, you will never know,
 		// least you use if for evil end.
 		smartMeters.get(sender).send(dataConcentrator,
-				SmartMeterActor::maskedValue, "Masked_final");
+				SmartMeterActor::maskedValue, "Masked_final", 10);
 
 		// Last smart meter: Take my masked value and the total share, oh data
 		// concentrator! Find out the sum of all measures we smart and wise
 		// meters have given to you, though each individual value will forever
 		// remain concealed from you and your evil plottings.
 		smartMeters.get(sender).send(dataConcentrator, (sm) -> sm.getTotalShare(),
-				"Share_final");
+				"Share_final", 10);
 		
 		// [The curtains fall.]
 	}
@@ -219,6 +222,10 @@ class DataConcentrator {
 	 */
 	public DataConcentrator(List<String> smartMeterAddresses,
 			CommunicationResource<Integer> communicationsResource) {
+		Clock clock = Clock.systemUTC();
+		long tic, toc;
+		
+		tic = clock.millis();
 		// Initiator object: the object that runs the protocol as an initiator
 		// role.
 		concentratorActor = new ConcentratorActor(smartMeterAddresses.size());
@@ -231,6 +238,9 @@ class DataConcentrator {
 			concentratorActor.setInitialAddress("sm" + String.valueOf(i),
 					smartMeterAddresses.get(i));
 		}
+		toc = clock.millis();
+		
+		System.out.println(String.format("DC setup time: %dms\n", toc-tic));
 	}
 	
 	/**
@@ -239,8 +249,16 @@ class DataConcentrator {
 	 * @return the aggregated value retrieved from the smart meters.
 	 */
 	public int aggregate() {
+		Clock clock = Clock.systemUTC();
+		long tic, toc;
+		
+		tic = clock.millis();
 		// Get the initiator object to enact it:
 		concentratorActor.perform();
+		toc = clock.millis();
+		
+		System.out.println();
+		System.out.println(String.format("Run time from DC: %dms", toc-tic));
 		
 		// The aggregated value is the sum of all masked values less the
 		// aggregated share.
@@ -255,11 +273,11 @@ class DataConcentrator {
 		new Thread(() -> {
 			// Count to 3:
 				for (int i = 1; i <= 4; i++) {
-					if (i != 4)
+					/*if (i != 4)
 						System.out.printf(i + "... ");
 					else
 						System.out.printf("and... \n");
-					
+					*/
 					try {
 						Thread.sleep(500);
 					} catch (Exception e) {
@@ -269,7 +287,7 @@ class DataConcentrator {
 				}
 				
 				// Run and print the value on the screen:
-				System.out.println("\nData concentrator got: " + aggregate());
+				System.out.println("Data concentrator got: " + aggregate());
 			}, "data_concentrator").start();
 	}
 }
@@ -307,12 +325,12 @@ class SmartMeter {
 		continuator = new Server<Integer>(
 				new ShareProtocol(smartMeterNumber).interpretAs("sm" + String
 						.valueOf(position)), communicationsResource, () -> {
-					// Creates a new run instance:
+				// Creates a new run instance:
 				SmartMeterActor smartMeter = new SmartMeterActor(
 						smartMeterAddresses.size());
 				
 				// Comes up with a dummy measurement:
-				int measure = 1;//(int) (random.nextGaussian() * 0) + 1;
+				int measure = 1000;//(int) (random.nextGaussian() * 0) + 1;
 				smartMeter.setMeasure(measure);
 				
 				// Return the initialized instance:
@@ -357,8 +375,8 @@ class SmartMeter {
 public class SharesShowcase {
 	
 	public static void main(String[] args) {
-		// The number of smart meters plus the data concentrator:
-		int smartMeterNumber = 14;
+		/*// The number of smart meters plus the data concentrator:
+		int smartMeterNumber = 11;
 		
 		// The addresses:
 		List<String> addresses = new LinkedList<String>();
@@ -386,7 +404,7 @@ public class SharesShowcase {
 		// These are the SMART METERS, some of which were ensnared by Trudy in a
 		// magical sleep:
 		for (int n = 1; n < smartMeterNumber; n++) {
-			if (n != 7 && n != 8 && n != 11) {
+			if (n != 4 && n != 5 && n != 8) {
 				CommunicationResource<Integer> resource =
 						new AcknowledgeChannel<ShortMessage<Integer>>().compose(
 								MessageEncodingScheme.getTrivialScheme(),
@@ -398,6 +416,42 @@ public class SharesShowcase {
 				new SmartMeter(addresses, n, resource).run();
 			}
 			
+			// Everything should start working and shooting messages around now.
+		}*/
+		
+		// The number of smart meters plus the data concentrator:
+		int smartMeterNumber = 11;
+
+		// The addresses:
+		List<String> addresses = new LinkedList<String>();
+
+		// The means of communication: one blocking queue for each thread.
+		Map<String, BlockingQueue<FullMessage<Integer>>> blockingQueues =
+				new HashMap<String, BlockingQueue<FullMessage<Integer>>>();
+
+		addresses.add("data_concentrator");
+
+		for (int n = 1; n < smartMeterNumber; n++)
+			addresses.add("smart_meter_" + n); // The smart meters' address.
+
+		// This is the DATA CONCENTRATOR:
+		CommunicationResource<Integer> concentratorResource = new Dump<Integer>(
+				new ThreadProtocol<Integer>(blockingQueues, "data_concentrator"),
+				Dump.Show.RECEIVE);
+
+		new DataConcentrator(addresses, concentratorResource).run();
+
+		// These are the SMART METERS, some of which were ensnared by Trudy in a
+		// magical sleep:
+		for (int n = 1; n < smartMeterNumber; n++) {
+			if (n != 4 && n != 5 && n != 8) {
+				CommunicationResource<Integer> resource = new Dump<Integer>(
+						new ThreadProtocol<Integer>(blockingQueues,
+								"smart_meter_" + n), Dump.Show.RECEIVE);
+
+				new SmartMeter(addresses, n, resource).run();
+			}
+
 			// Everything should start working and shooting messages around now.
 		}
 	}

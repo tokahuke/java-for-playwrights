@@ -419,6 +419,8 @@ class Flowchart {
 		return new Part(characterName, protocolName, actorClass, inMessageIds,
 				outMessageIds, characterIds, characterForMessageArray,
 				nextActionsArray, FlowchartUtils.reverse(nextActionsArray),
+				FlowchartUtils.topSort(nextActionsArray,
+						FlowchartUtils.reverse(nextActionsArray)),
 				noReceiveHandlersArray, causalityRelation, maxDelays,
 				isCausFinal, isSpontaneous, inMessageIds.size(), rootNode);
 	}
@@ -473,13 +475,13 @@ class Flowchart {
 					}
 					
 					// Explore the receive handler:
-					Node handler = sendNode.getNoReceveHandler();
+					/*Node handler = sendNode.getNoReceveHandler();
 					if (!(handler instanceof EndNode)) {
 						sendNode.setHandlerMessages(FlowchartUtils
 								.listToBitSet((List<Short>) searchOthersActions(
 										new RootNode(handler.getCharacter(),
 												handler), characterName)));
-					}
+					}*/
 				}
 			} else { // Passive node!
 				Object nextAction;
@@ -643,7 +645,7 @@ class Flowchart {
 			noReceiveHandlers.set(id, noReceiveHandler);
 
 			// In case an exception handler is supplied (recursive step 2):
-			if (!(noReceiveHandler instanceof EndNode)) {
+			/*if (!(noReceiveHandler instanceof EndNode)) {
 				if (noReceiveHandler.getCharacter()
 						.equals(characterName)) {
 					// Continue search from the node found:
@@ -655,6 +657,14 @@ class Flowchart {
 									+ "should be %s. ", characterName,
 							noReceiveHandler.getCharacter(), characterName));
 				}
+			}*/
+			
+			// Just accept empty exception handlers (by now):
+			if (noReceiveHandler != EndNode.NO_RECEIVE &&
+					!noReceiveHandler.equals(sendNode.getNext())) {
+				throw new RuntimeException(String.format(
+						"Non-empty RxException catch block are not yet "
+								+ "supported. At %s.", sendNode));
 			}
 		}
 		
@@ -684,7 +694,7 @@ final class FlowchartUtils {
 		
 		return array;
 	}
-	
+
 	public static <T> void fillUntil(int id, List<T> list) {
 		for (int i = list.size(); i < id + 1; i++) {
 			list.add(i, null);
@@ -723,6 +733,42 @@ final class FlowchartUtils {
 		}
 		
 		return set;
+	}
+	
+	public static short[] topSort(Object[] nextActions, short[][] reverse) {
+		short[] topSort = new short[reverse.length];
+		short topSortPointer = 0;
+		int[] inDegree = new int[reverse.length];
+		short[] stack = new short[reverse.length];
+		short stackPointer = 0;
+		
+		// Build in degree:
+		for (int i = 0; i < reverse.length; i++) {
+			inDegree[i] = reverse[i].length;
+			
+			if (inDegree[i] == 0) {
+				stack[stackPointer++] = (short) i;
+			}
+		}
+		
+		// Do top-sort:
+		while (stackPointer != 0) {
+			short v = stack[--stackPointer];
+			
+			if (nextActions[v] instanceof short[]) {
+				for (short u : (short[]) nextActions[v]) {
+					if (inDegree[u] > 1) {
+						inDegree[u]--;
+					} else {
+						stack[stackPointer++] = u;
+					}
+				}
+			}
+			
+			topSort[topSortPointer++] = v;
+		}
+		
+		return topSort;
 	}
 	
 	private FlowchartUtils() {}

@@ -16,7 +16,6 @@ import communications.CommunicationResource;
 import communications.FullMessage;
 import communications.NoSuchCharacter;
 import communications.NoSuchMessage;
-import communications.RxException;
 import communications.ShortMessage;
 import communications.TimeoutException;
 
@@ -135,6 +134,11 @@ public class Actor<P> {
 	private P[] outMessages;
 	
 	/**
+	 * 
+	 */
+	private BitSet accepted;
+	
+	/**
 	 * The current address mapping ordered by character id. This is set
 	 * initially to the content of {@link #initialAddressMap} and may be altered
 	 * along the run.
@@ -151,26 +155,6 @@ public class Actor<P> {
 	 * @see #addressMap
 	 */
 	private String[] addressBuffer;
-	
-	/**
-	 * A stack to search the incoming message graph.
-	 */
-	private short[] searchStack;
-	
-	/**
-	 * A parent set to build the search tree of the incoming message graph.
-	 */
-	private short[] parent;
-	
-	/**
-	 * A set marking explored nodes in the incoming message graph.
-	 */
-	private BitSet explored;
-	
-	/**
-	 * A set marking accepted (i.e., non spurious) incoming messages.
-	 */
-	private BitSet accepted;
 	
 	/**
 	 * A set marking messages already sent.
@@ -195,7 +179,7 @@ public class Actor<P> {
 	 */
 	private PriorityQueue<Short> expiryQueue;
 	
-	
+
 	// Constructors and building methods:
 	
 	/**
@@ -285,12 +269,9 @@ public class Actor<P> {
 		
 		this.inMessages = (P[]) new Object[inMessageNumber];
 		this.outMessages = (P[]) new Object[outMessageNumber];
+		this.accepted = new BitSet();
 		this.addressMap = new String[characterNumber];
 		this.addressBuffer = new String[inMessageNumber];
-		this.searchStack = new short[part.stackSize];
-		this.parent = new short[inMessageNumber];
-		this.explored = new BitSet(inMessageNumber);
-		this.accepted = new BitSet(inMessageNumber);
 		this.sent = new BitSet(outMessageNumber);
 		this.maxTimes = new int[inMessageNumber];
 		this.expiryQueue = new PriorityQueue<Short>(
@@ -350,9 +331,6 @@ public class Actor<P> {
 		// Zhu Lee! Do the thing!
 		try {
 			for (Node node = part.rootNode; !(node instanceof EndNode); /* */) {
-				// Useful debug:
-//				System.out.println(part.characterName + " : " + node);
-				
 				// Get messages that might arrive from NoReceive handlers:
 				if (node instanceof SendNode
 						&& ((SendNode) node).getHandlerMessages() != null) {
@@ -379,9 +357,6 @@ public class Actor<P> {
 			Thread.currentThread().interrupt();
 			reset();
 		} finally {
-			// Useful debug:
-//			System.out.println(Thread.currentThread().getName());
-			
 			// Stop listening:
 			communicationResource.removeReceiveEvent(this::ongoingRunEvent);
 		}
@@ -400,16 +375,13 @@ public class Actor<P> {
 	 */
 	private Node receiveMessages(BitSet initials) throws InterruptedException {
 		FullMessage<P> message;
-		Node nextNode = null;
-		BitSet connectivityProof = getConnectivityProof(initials);
+		Transition transition = null;
+		TransitionFinder finder = new TransitionFinder(part, initials);
+		BitSet connectivityProof = finder.getConnectivityProof();
 		
 		do {
 			// Receive a message or lose your temper:
 			if (expiryQueue.isEmpty()) {
-				// Relax and just wait until something gets here:
-				// System.out.println("MaxT:" + Arrays.toString(maxTimes));
-				// System.out.println("ExpQ:" + expiryQueue);
-				// System.out.println("CC:" +Arrays.toString(causalCount));
 				message = queue.take();
 			} else {
 				// Wait until all patience is gone:
@@ -422,52 +394,43 @@ public class Actor<P> {
 					// Remove from priority queue:
 					int expiredMessageId = expiryQueue.remove();
 					
-					// Mark message as expired:
+					// Mark message as expired if it has not yet arrived:
 					maxTimes[expiredMessageId] = -1;
-					
+					transition = finder.markTimeout((short) expiredMessageId);
+
+					// Found it? Great!
+					if (transition != null) {
+						break;
+					}
+
 					// Check if connectivity proof still holds:
-					if (!connectivityProof.get(expiredMessageId)) {
-						// If it does hold, no problem! Continue waiting:
-						continue;
-					} else {
-						// Nope, it doesn't! Calculate new connectivity proof:
-						connectivityProof = getConnectivityProof(initials);
-						
-						// In case the graph is disconnected:
+					if (part.noReceiveHandlers[expiredMessageId] == EndNode.NO_RECEIVE
+							&& connectivityProof.get(expiredMessageId)) {
+						connectivityProof = finder.getConnectivityProof();
+
 						if (connectivityProof.isEmpty()) {
-							if (part.noReceiveHandlers[expiredMessageId] instanceof EndNode) {
-								// TODO get name from message id (argh, Java!)
-								System.out.println(runId);
-								throw new TimeoutException(part.protocolName,
-										"X", runId);
-							} else {
-								return part.noReceiveHandlers[expiredMessageId];
-							}
+							throw new TimeoutException(part.protocolName, "M",
+									runId);
 						}
 					}
+
+					// Carry on... nothing happens.
+					continue;
 				}
 			}
 			
 			// Now that we have something, lets check if is legit and what it
 			// means:
-			//System.out.println(part.characterName + " got " + message);
 			
 			short messageId = part.inMessageIds.get(message.getName());
 			String inferredAddress = addressMap[part.characterForMessage[messageId]];
-			
-			// Useful debug:
-//			System.out.println(!explored.get(messageId));
-//			System.out.println(maxTimes[messageId]);
-//			System.out.println((inferredAddress == null || inferredAddress
-//			.equals(message.getFrom())));
 			
 			// Conditions to consider a message as non spurious: it is not
 			// already explored, but it must also
 			// have been completely caused and the inferred address must be
 			// equal to the one given in the map (or there must be none given).
 			// Additionally, it may not have already expired.
-			if (!explored.get(messageId)
-					&& maxTimes[messageId] >= 0
+			if (!finder.isReceived(messageId)
 					&& (inferredAddress == null || inferredAddress
 							.equals(message.getFrom()))) {
 				// Put in buffer:
@@ -475,152 +438,24 @@ public class Actor<P> {
 				addressBuffer[messageId] = message.getFrom();
 				
 				// Check if message is initial:
-				if (initials.get(messageId)) {
-					// Initial are trivially explored:
-					if ((nextNode = searchForFinal(messageId)) != null) {
-						break; // No need to carry on...
-					}
-				} else {
-					// Check if message connects to previously explored:
-					for (short previous : part.nextMessagesReverse[messageId]) {
-						if (explored.get(previous)) {
-							// If connects, do search for a final message:
-							parent[messageId] = (short) (previous + 1);
-							nextNode = searchForFinal(messageId);
-							break;
-						}
-					}
-				}
+				transition = finder.markReceived(messageId);
 			}
-		} while (nextNode == null);
+		} while (transition == null);
 		
 		// Learn search id:
 		if (runId == null) {
 			runId = message.getId();
 		}
 		
-		explored.clear(); // Remember to clear search variables!
-		
-		return nextNode;
-	}
-	
-	/**
-	 * Establishes whether any messages can still be received. This method looks
-	 * for a path from any of the initial messages provided and tries to find a
-	 * path of receivable messages to a Node. This path, if non-empty, serves as
-	 * proof that it is still reasonable to wait for new messages to arrive
-	 * (instead of, say, raising a {@link RxException}).
-	 * 
-	 * @param initials
-	 *            a BitSet with the positions to start the search from set.
-	 * @return a BitSet with the positions in the proof path set.
-	 */
-	private BitSet getConnectivityProof(BitSet initials) {
-		
-		// Initializing search variables:
-		BitSet proof = new BitSet();
-		short[] stack = this.searchStack; // Using existing stack.
-		short stackPointer = 0;
-		BitSet explored = new BitSet();
-		short[] parent = new short[inMessages.length];
-		
-		// Put initials in stack:
-		for (short i = 0; i < initials.length(); i++) {
-			if (initials.get(i) && maxTimes[i] >= 0) {
-				stack[stackPointer++] = i;
-			}
-		}
-		
-		// Depth first search:
-		while (stackPointer != 0) {
-			// Dequeue:
-			short current = stack[--stackPointer];
-			explored.set(current);
-			
-			// Analyze:
-			if (part.nextActions[current] instanceof Node) {
-				// Found a path!
-				for (short id = current; id != -1; id = (short) (parent[id] - 1)) {
-					proof.set(id);
-				}
-				
-				// Search done!
-				break;
-			} else {
-				// Put valid adjacencies in queue:
-				for (short next : (short[]) part.nextActions[current]) {
-					// Only put those messages that may arrive:
-					if (!explored.get(next) && maxTimes[next] >= 0) {
-						stack[stackPointer++] = next;
-						parent[next] = (short) (current + 1);
-					}
-				}
-			}
-		}
-		
-		return proof;
-	}
-	
-	/**
-	 * Does a search for a final message in the incoming message graph that is
-	 * connected to the message id provided. The connection has to be done
-	 * through messages that arrived but were not confirmed yet.
-	 * 
-	 * @param messageId
-	 *            the id of the beginning of the search.
-	 * @return the next action in the execution path if it was found; null
-	 *         otherwise.
-	 */
-	private Node searchForFinal(short messageId) {
-		
-		// Search variables initialization:
-		short[] stack = searchStack;
-		stack[0] = messageId;
-		short stackPointer = 1;
-		boolean foundFinal = false;
-		
-		// Depth first search:
-		while (stackPointer != 0) {
-			// Dequeue:
-			short current = stack[--stackPointer];
-			explored.set(current);
-			
-			// Analyze:
-			if (part.nextActions[current] instanceof Node) {
-				// Found a final message
-				foundFinal = true;
-				break;
-			} else {
-				for (short next : (short[]) part.nextActions[current]) {
-					// Only put those messages that arrived:
-					if (inMessages[next] != null) {
-						stack[stackPointer++] = next;
-						parent[next] = (short) (current + 1);
-					}
-				}
-			}
-		}
-		
-		// If found a final message, backtrack and learn:
-		if (foundFinal) {
-			// TODO Actually this piece of code is conceptually wrong. See my
-			// notes on that for further detail. Instead, we have to implement a
-			// longest (critical) path algorithm and accept the messages in this
-			// path.
-			
-			short finalId = stack[stackPointer];
-			
-			for (short id = finalId; id != -1; id = (short) (parent[id] - 1)) {
+		// Accept messages in the path and learn their addresses:
+		for (short id : transition.messagePath) {
+			if (finder.isReceived(id)) {
 				accepted.set(id);
 				addressMap[part.characterForMessage[id]] = addressBuffer[id];
 			}
-			
-			// And it's done. Next state!
-			return (Node) part.nextActions[finalId];
 		}
 		
-		// Else, do nothing.
-		return null;
+		return transition.nextNode;
 	}
 	
 	/**
@@ -775,6 +610,12 @@ public class Actor<P> {
 					part.characterName, part.protocolName, messageName,
 					part.inMessageIds));
 		}
+//		
+//		for(String name : part.inMessageIds.keySet()) {
+//			System.out.println(name);
+//			System.out.println(inMessages[part.inMessageIds.get(name)]);
+//			System.out.println(accepted.get(part.inMessageIds.get(name)));
+//		}
 		
 		if (accepted.get(id)) {
 			return inMessages[id];

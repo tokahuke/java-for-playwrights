@@ -1,9 +1,10 @@
 package dsl;
 
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 
 class Causality {
@@ -108,11 +109,10 @@ class Causality {
 			Map<Node, Set<Node>> flowchartReverse,
 			Map<SendNode, Map<SendNode, Integer>> maxDelays) {
 		Map<Node, Set<Node>> finals = new HashMap<Node, Set<Node>>();
-		LinkedList<Node> queue = new LinkedList<Node>();
-		Set<Node> explored = new HashSet<Node>();
+		Queue<Node> queue = new ArrayDeque<Node>();
 		Map<Node, Set<Node>> inverseRelation = new HashMap<Node, Set<Node>>();
 		
-		// Calculate the inverse mapping:
+		// Calculate the inverse relation:
 		maxDelays.forEach((outNode, causedMap) -> {
 			causedMap.forEach((inNode, delay) -> {
 				// Build inverse relation:
@@ -129,32 +129,34 @@ class Causality {
 		// Find final outgoing messages for each incoming message:
 		inverseRelation.forEach((inNode, outNodes) -> {
 			Set<Node> finalSet = new HashSet<Node>();
+			Set<Node> explored = new HashSet<Node>();
 			
-			flowchartReverse.get(inNode).forEach(node -> queue.addFirst(node));
+			// Put all reverse adjs of inNode in queue:
+			flowchartReverse.get(inNode).forEach(node -> queue.add(node));
 			
 			while (!queue.isEmpty()) {
-				Node node = queue.pollLast();
+				Node node = queue.remove();
 				
 				if (explored.contains(node)) {
-					break;
+					continue;
 				} else {
 					explored.add(node);
 				}
 				
 				if (outNodes.contains(node)) {
-					// Found a "last out-message"!
+					// Found a "last out-message"! And don't go further.
 					finalSet.add(node);
 				} else {
 					// Nope. Enqueue!
 					flowchartReverse.get(node).forEach(adj -> {
-						queue.addFirst(adj);
+						queue.add(adj);
 					});
 				}
 			}
 			
 			finals.put(inNode, finalSet);
 		});
-
+		
 		return finals;
 	}
 }
