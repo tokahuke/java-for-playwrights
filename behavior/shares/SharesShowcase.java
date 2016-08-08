@@ -13,8 +13,11 @@ import protocols.ThreadProtocol;
 import communications.CommunicationResource;
 import communications.FullMessage;
 import communications.RxException;
+import communications.ShortMessage;
 import communications.TxException;
 import communications.util.Dump;
+import compose.MessageEncodingScheme;
+import composition.AcknowledgeChannel;
 
 import dsl.Actor;
 import dsl.Play;
@@ -66,14 +69,14 @@ class ConcentratorActor extends Actor<Integer> {
 		int totalMasked = 0;
 		
 		for (int i = 1; i < smartMeterNumber - 1; i++) {
-			if (hasMessage("Masked_from_" + i)) {
-				totalMasked += getMessage("Masked_from_" + i);
+			if (hasMessage("masked-from-" + i)) {
+				totalMasked += getMessage("masked-from-" + i);
 			}
 		}
 		
-		totalMasked += getMessage("Masked_final");
+		totalMasked += getMessage("masked-final");
 		
-		return totalMasked - getMessage("Share_final") + share;
+		return totalMasked - getMessage("share-final") + share;
 	}
 }
 
@@ -130,7 +133,7 @@ class ShareProtocol extends Play<Integer> {
 		// Keep it well. Trudy cannot find it out.
 		dataConcentrator.send(smartMeters.get(1),
 				ConcentratorActor::maskedValue, SmartMeterActor::addToShare,
-				"Share", 10);
+				"share", 10);
 
 		int sender = 1, receiver = 1;
 		while (sender < smartMeterNumber - 1) {
@@ -142,13 +145,13 @@ class ShareProtocol extends Play<Integer> {
 			// masked value, you data concentrator! As your wisdom is great, so
 			// is your cunning. The true value, though, you will never know,
 			// least you use it for evil end.
-			try {
+			//try {
 				smartMeters.get(sender).send(
 						dataConcentrator,
 						sm -> {
 							return sm.maskedValue();
-						}, "Masked_from_" + sender, 10);
-			} catch (RxException e) {}
+						}, "masked-from-" + sender, 10);
+			//} catch (RxException e) {}
 			
 			//dataConcentrator.run(dc -> dc.putMasked(dc.getMessage("Masked_")));
 			
@@ -165,12 +168,12 @@ class ShareProtocol extends Play<Integer> {
 					// you.
 					smartMeters.get(sender).send(smartMeters.get(receiver),
 							SmartMeterActor::getTotalShare,
-							SmartMeterActor::addToShare, "Share_from_" + sender, 10);
+							SmartMeterActor::addToShare, "share-from-" + sender, 10);
 					break;
 				} catch (TxException e) {
 					// [N-th smart meter tries the next one in the line.]
-					//smartMeters.get(sender).send(dataConcentrator,
-					//		"Comm_failed_" + sender + "_" + receiver);
+					smartMeters.get(sender).send(dataConcentrator,
+							"comm-failed-" + sender + "-" + receiver);
 					
 					// And if we get to the end, we are screwed!
 					if (receiver == smartMeterNumber - 1) {
@@ -187,14 +190,14 @@ class ShareProtocol extends Play<Integer> {
 		// is your cunning. The true value, though, you will never know,
 		// least you use if for evil end.
 		smartMeters.get(sender).send(dataConcentrator,
-				SmartMeterActor::maskedValue, "Masked_final", 10);
+				SmartMeterActor::maskedValue, "masked-final", 10);
 
 		// Last smart meter: Take my masked value and the total share, oh data
 		// concentrator! Find out the sum of all measures we smart and wise
 		// meters have given to you, though each individual value will forever
 		// remain concealed from you and your evil plottings.
 		smartMeters.get(sender).send(dataConcentrator, (sm) -> sm.getTotalShare(),
-				"Share_final", 10);
+				"share-final", 10);
 		
 		// [The curtains fall.]
 	}
@@ -385,10 +388,10 @@ public class SharesShowcase {
 		Map<String, BlockingQueue<FullMessage<ShortMessage<Integer>>>> blockingQueues =
 				new HashMap<String, BlockingQueue<FullMessage<ShortMessage<Integer>>>>();
 		
-		addresses.add("data_concentrator");
+		addresses.add("dc");
 		
 		for (int n = 1; n < smartMeterNumber; n++)
-			addresses.add("smart_meter_" + n); // The smart meters' address.
+			addresses.add("meter-" + n); // The smart meters' address.
 		
 		// This is the DATA CONCENTRATOR:
 		CommunicationResource<Integer> concentratorResource =
@@ -396,8 +399,8 @@ public class SharesShowcase {
 						MessageEncodingScheme.getTrivialScheme(),
 						new Dump<ShortMessage<Integer>>(
 								new ThreadProtocol<ShortMessage<Integer>>(
-										blockingQueues, "data_concentrator"),
-								Dump.Show.RECEIVE));
+										blockingQueues, "dc"),
+								Dump.Show.SEND));
 		
 		new DataConcentrator(addresses, concentratorResource).run();
 		
@@ -410,8 +413,8 @@ public class SharesShowcase {
 								MessageEncodingScheme.getTrivialScheme(),
 								new Dump<ShortMessage<Integer>>(
 										new ThreadProtocol<ShortMessage<Integer>>(
-												blockingQueues, "smart_meter_" + n),
-										Dump.Show.RECEIVE));
+												blockingQueues, "meter-" + n),
+										Dump.Show.SEND));
 				
 				new SmartMeter(addresses, n, resource).run();
 			}
@@ -429,14 +432,14 @@ public class SharesShowcase {
 		Map<String, BlockingQueue<FullMessage<Integer>>> blockingQueues =
 				new HashMap<String, BlockingQueue<FullMessage<Integer>>>();
 
-		addresses.add("data_concentrator");
+		addresses.add("dc");
 
 		for (int n = 1; n < smartMeterNumber; n++)
-			addresses.add("smart_meter_" + n); // The smart meters' address.
+			addresses.add("meter-" + n); // The smart meters' address.
 
 		// This is the DATA CONCENTRATOR:
 		CommunicationResource<Integer> concentratorResource = new Dump<Integer>(
-				new ThreadProtocol<Integer>(blockingQueues, "data_concentrator"),
+				new ThreadProtocol<Integer>(blockingQueues, "dc"),
 				Dump.Show.RECEIVE);
 
 		new DataConcentrator(addresses, concentratorResource).run();
@@ -447,7 +450,7 @@ public class SharesShowcase {
 			if (n != 4 && n != 5 && n != 8) {
 				CommunicationResource<Integer> resource = new Dump<Integer>(
 						new ThreadProtocol<Integer>(blockingQueues,
-								"smart_meter_" + n), Dump.Show.RECEIVE);
+								"meter-" + n), Dump.Show.RECEIVE);
 
 				new SmartMeter(addresses, n, resource).run();
 			}

@@ -6,6 +6,7 @@ import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
@@ -409,9 +410,21 @@ public class Actor<P> {
 							&& connectivityProof.get(expiredMessageId)) {
 						connectivityProof = finder.getConnectivityProof();
 
+						// Find expired message name:
+						String expiredMessageName = null;
+						
 						if (connectivityProof.isEmpty()) {
-							throw new TimeoutException(part.protocolName, "M",
-									runId);
+							// Find expired message name:
+							for (Entry<String, Short> entry : part.inMessageIds
+									.entrySet()) {
+								if (entry.getValue() == expiredMessageId) {
+									expiredMessageName = entry.getKey();
+									break;
+								}
+							}
+							
+							throw new TimeoutException(part.protocolName,
+									expiredMessageName, runId);
 						}
 					}
 

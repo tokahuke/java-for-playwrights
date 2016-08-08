@@ -1,6 +1,7 @@
 package protocols;
 
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -29,9 +30,18 @@ public class ThreadProtocol<P> extends QueueResource<P> {
 	 */
 	private final String me;
 	
+	/**
+	 * Number of messages sent on this interface.
+	 */
+	private long numberOfTxMessages = 0;
+	
+	/**
+	 * Number of messages received on this interface.
+	 */
+	private long numberOfRxMessages = 0;
 	
 	// Constructors:
-	
+
 	/**
 	 * Creates a new ThreadProtocol resource for a certain address, given as any
 	 * String, and a channel simulated by a BlockingQueue map.
@@ -74,13 +84,16 @@ public class ThreadProtocol<P> extends QueueResource<P> {
 		try {
 			FullMessage<P> fullMsg = msg.lengthen(me);
 			
-//			if (new Random().nextFloat() < 0.5) {
+//			if (new Random().nextFloat() < 0.01) {
 //				return;
 //			}
+			
+			numberOfTxMessages++;
 			
 			try {
 				blockingQueues.get(to).put(fullMsg);
 			} catch (NullPointerException e) {
+				// Panic on non existent addresses:
 				throw new TxException();
 			}
 		} catch (InterruptedException e) {
@@ -90,10 +103,19 @@ public class ThreadProtocol<P> extends QueueResource<P> {
 	
 	@Override public FullMessage<P> take() throws InterruptedException {
 		FullMessage<P> msg = blockingQueue.take();
+		numberOfRxMessages++;
 		return msg;
 	}
 	
 	@Override public String getLocalAddress() {
 		return me;
+	}
+	
+	public long getNumberOfRxMessages() {
+		return numberOfRxMessages;
+	}
+	
+	public long getNumberOfTxMessages() {
+		return numberOfTxMessages;
 	}
 }

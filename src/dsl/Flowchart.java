@@ -660,12 +660,12 @@ class Flowchart {
 			}*/
 			
 			// Just accept empty exception handlers (by now):
-			if (noReceiveHandler != EndNode.NO_RECEIVE &&
+			/*if (noReceiveHandler != EndNode.NO_RECEIVE &&
 					!noReceiveHandler.equals(sendNode.getNext())) {
 				throw new RuntimeException(String.format(
 						"Non-empty RxException catch block are not yet "
 								+ "supported. At %s.", sendNode));
-			}
+			}*/ // We will need to live like this by now.
 		}
 		
 		// Add it to the next message list:

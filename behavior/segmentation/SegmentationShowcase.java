@@ -26,12 +26,14 @@ public class SegmentationShowcase {
 			public void run() {
 				Clock clock = Clock.systemUTC();
 				long tic, toc;
+				ThreadProtocol<String> threadProtocol =
+						new ThreadProtocol<String>(blockingQueues,
+								"221 Baker Street"); 
 				
 				tic = clock.millis();
 				CommunicationResource<byte[]> cr = new Dump<byte[]>(
 						new WrappedTypeProtocol<String, byte[]>(
-								new ThreadProtocol<String>(blockingQueues,
-										"221 Baker Street"),
+								threadProtocol,
 								str -> "null".equals(str) ? null : Base64
 										.getDecoder().decode(str),
 								arr -> arr == null ? "null" : Base64
@@ -45,9 +47,10 @@ public class SegmentationShowcase {
 				performer.setInitialAddress("receiver", "103 Addison Road");
 				
 				toc = clock.millis();
-				System.out.println(toc-tic);
 				
-				// Create junk:
+				long setupTime = toc - tic;
+				
+				// Make junk to be sent:
 				int size = 1492*21;
 				byte[] junk = new byte[size];
 				new SecureRandom().nextBytes(junk);
@@ -58,9 +61,19 @@ public class SegmentationShowcase {
 				performer.perform();
 				toc = clock.millis();
 				
-				System.out.println(toc-tic); // delta_t [ms]
-				System.out.println(((float)size)/(toc-tic)); // Thr [kB/s]
-				System.out.println((toc-tic)/(2.0*size/6.0)); // tp [ms]
+				try {
+					Thread.sleep(200);
+				} catch (InterruptedException e) {
+					return;
+				}
+
+				System.out.println("\nSTATISTICS:\n");
+				System.out.printf("System setup time: %dms\n", setupTime);
+				System.out.printf("Total transmission time: %dms\n", toc - tic);
+				System.out.printf("Throughput: %fMbps\n", ((float) size)
+						* 0.001 * 8. / (toc - tic));
+				System.out.printf("Latency per message: %fms\n", (float)(toc - tic)
+						/ (threadProtocol.getNumberOfTxMessages()));
 			}
 		});
 		
@@ -89,7 +102,7 @@ public class SegmentationShowcase {
 		
 		// Wait a bit:
 		try {
-			Thread.sleep(1000);
+			Thread.sleep(200);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}

@@ -2,6 +2,8 @@ package segmentation;
 
 import java.util.BitSet;
 
+import communications.RxException;
+
 import dsl.Play;
 
 public class SimpleTransfer extends Play<byte[]>{
@@ -23,15 +25,17 @@ public class SimpleTransfer extends Play<byte[]>{
 		
 		while (sender.test(snd -> !snd.done())) {
 			sender.run(snd -> snd.stackMissing());
-			
-			while (sender.test(snd -> !snd.oneToGo())) {
+
+			try {
+				while (sender.test(snd -> !snd.oneToGo())) {
+					sender.send(receiver, snd -> snd.nextChunk(),
+							(rec, chk) -> rec.cat(chk), "chunk", 50);
+				}
+
 				sender.send(receiver, snd -> snd.nextChunk(),
-						(rec, chk) -> rec.cat(chk), "chunk", 50);
-			}
-			
-			sender.send(receiver, snd -> snd.nextChunk(),
-					(rec, chk) -> rec.cat(chk), "last", 50);
-			
+						(rec, chk) -> rec.cat(chk), "last", 50);
+			} catch (RxException e) {}
+
 			if (receiver.test(rec -> rec.isMissing())) {
 				receiver.send(sender, rec -> rec.arrived.toByteArray(), (snd,
 						arr) -> {

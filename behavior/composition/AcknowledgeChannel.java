@@ -24,8 +24,8 @@ public class AcknowledgeChannel<P> extends TransportPlay<P, P> {
 	}
 	
 	@Override public void scene() {
-		sender.send(receiver, SendingActor::take, ReceivingActor::put, "msg");
-		receiver.send(sender, "ack");
+		sender.send(receiver, SendingActor::take, ReceivingActor::put, "msg", 5);
+		receiver.send(sender, "ack", 5);
 	}
 
 	@Override public String getSenderName() {
