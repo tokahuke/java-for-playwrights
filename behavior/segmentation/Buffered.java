@@ -6,8 +6,8 @@ import dsl.Actor;
 
 
 class Buffered extends Actor<byte[]> {
-	public static final int chunkSize = 6 * 8;
-	public static final int segmentSize = 16;
+	public static final int chunkSize = 180 * 8;
+	public static final int segmentSize = 32;
 	
 	private byte[] bulk;
 	private byte[] stack = new byte[segmentSize];

@@ -29,11 +29,11 @@ public class SimpleTransfer extends Play<byte[]>{
 			try {
 				while (sender.test(snd -> !snd.oneToGo())) {
 					sender.send(receiver, snd -> snd.nextChunk(),
-							(rec, chk) -> rec.cat(chk), "chunk", 50);
+							(rec, chk) -> rec.cat(chk), "chunk", 100);
 				}
 
 				sender.send(receiver, snd -> snd.nextChunk(),
-						(rec, chk) -> rec.cat(chk), "last", 50);
+						(rec, chk) -> rec.cat(chk), "last", 100);
 			} catch (RxException e) {}
 
 			if (receiver.test(rec -> rec.isMissing())) {

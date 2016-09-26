@@ -172,7 +172,10 @@ class SocketListener implements Runnable {
 			} catch (InterruptedException e) {
 				interrupt();
 				break;
-			}
+			} /*catch (NumberFormatException e1) {
+				System.out.println("Kukuck!");
+				break;
+			}*/
 		}
 	}
 	
